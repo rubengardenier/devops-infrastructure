@@ -1,34 +1,47 @@
 # DevOps Infrastructure
 
-Scripts and configuration for setting up and managing the DevOps infrastructure used by the Brewstack AKS Terraform project.
+Setup and configuration for the self-hosted Ubuntu Azure DevOps agent used by Brewstack.
 
 ## Overview
 
-This repository contains automation scripts for provisioning and maintaining the CI/CD infrastructure, including:
+This repository contains scripts and documentation for provisioning and maintaining the self-hosted Azure DevOps agent running on Ubuntu. This agent is used to execute CI/CD pipelines for Terraform deployments.
 
-- Self-hosted Azure DevOps agent setup (Ubuntu)
-- Azure backend storage configuration for Terraform state
-- Service connection and permission configuration
+## Agent Details
 
-## Related Repositories
+| Property | Value |
+|----------|-------|
+| Pool name | `Ubuntu` |
+| Agent name | `ubuntu` |
+| OS | Ubuntu Linux |
+| Purpose | Terraform CI/CD pipeline execution |
 
-- **AKS Terraform** (Azure DevOps): Main infrastructure-as-code repository for deploying AKS clusters across DTAP environments
+## Installed Software
 
-## Prerequisites
+The agent requires the following software:
 
-- Azure CLI (`az`)
-- Azure subscription with appropriate permissions
-- Azure DevOps organization access
+- **Terraform** - Infrastructure as Code tool
+- **Azure CLI** (`az`) - Azure resource management
+- **Git** - Source control
+- **unzip** - Required for various pipeline tasks
 
-## Environment Structure
+## Setup
 
-The infrastructure supports a DTAP pipeline model:
+1. Provision an Ubuntu VM (Azure VM, on-premise, or other)
+2. Install required software listed above
+3. Register the agent with Azure DevOps:
+   ```bash
+   ./config.sh --unattended \
+     --url https://dev.azure.com/brewstack \
+     --auth pat \
+     --token <PAT> \
+     --pool Ubuntu \
+     --agent ubuntu
+   ```
+4. Start the agent:
+   ```bash
+   ./run.sh
+   ```
 
-| Environment | Pipeline | State File |
-|-------------|----------|------------|
-| Development | `deploy-dev.yml` | `dev.terraform.tfstate` |
-| Test | `deploy-test.yml` | `test.terraform.tfstate` |
-| Acceptance | `deploy-acc.yml` | `acc.terraform.tfstate` |
-| Production | `deploy-prod.yml` | `prod.terraform.tfstate` |
+## Related
 
-Each environment uses its own variable group (`tfstate-<env>`) for backend configuration.
+- **AKS Terraform** (Azure DevOps): Infrastructure-as-code repository that uses this agent for deployments
