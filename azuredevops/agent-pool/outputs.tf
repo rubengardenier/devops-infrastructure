@@ -1,7 +1,7 @@
 output "public_ip" {
-  value = azurerm_public_ip.pip.ip_address
+  value = module.vm.public_ips["nic-ipconfig1"].ip_address
 }
 
 output "ssh" {
-  value = "ssh ${var.admin_username}@${azurerm_public_ip.pip.ip_address}"
+  value = "ssh ${var.admin_username}@${module.vm.public_ips["nic-ipconfig1"].ip_address}"
 }

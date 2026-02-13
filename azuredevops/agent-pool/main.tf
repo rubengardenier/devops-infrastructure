@@ -3,90 +3,93 @@ resource "azurerm_resource_group" "rg" {
   location = var.location
 }
 
-resource "azurerm_virtual_network" "vnet" {
-  name                = "${var.name_prefix}-vnet"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  address_space       = ["10.50.0.0/16"]
-}
+module "nsg" {
+  source  = "Azure/avm-res-network-networksecuritygroup/azurerm"
+  version = "~> 0.4"
 
-resource "azurerm_subnet" "subnet" {
-  name                 = "${var.name_prefix}-subnet"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.50.1.0/24"]
-}
-
-resource "azurerm_public_ip" "pip" {
-  name                = "${var.name_prefix}-pip"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-}
-
-resource "azurerm_network_security_group" "nsg" {
   name                = "${var.name_prefix}-nsg"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
-  security_rule {
-    name                       = "Allow-SSH"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.ssh_source_cidr
-    destination_address_prefix = "*"
+  security_rules = {
+    allow_ssh = {
+      name                       = "Allow-SSH"
+      priority                   = 100
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = var.ssh_source_cidr
+      destination_address_prefix = "*"
+    }
   }
 }
 
-resource "azurerm_network_interface" "nic" {
-  name                = "${var.name_prefix}-nic"
+module "vnet" {
+  source  = "Azure/avm-res-network-virtualnetwork/azurerm"
+  version = "~> 0.7"
+
+  name                = "${var.name_prefix}-vnet"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
+  address_space       = ["10.50.0.0/16"]
 
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.subnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.pip.id
+  subnets = {
+    subnet = {
+      name             = "${var.name_prefix}-subnet"
+      address_prefixes = ["10.50.1.0/24"]
+      network_security_group = {
+        id = module.nsg.resource_id
+      }
+    }
   }
 }
 
-resource "azurerm_network_interface_security_group_association" "nic_nsg" {
-  network_interface_id      = azurerm_network_interface.nic.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
-}
+module "vm" {
+  source  = "Azure/avm-res-compute-virtualmachine/azurerm"
+  version = "~> 0.18"
 
-resource "azurerm_linux_virtual_machine" "vm" {
   name                = "${var.name_prefix}-vm"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  size                = var.vm_size
+  zone                = null
+  os_type             = "Linux"
+  sku_size            = var.vm_size
 
-  admin_username = var.admin_username
+  encryption_at_host_enabled = false
 
-  network_interface_ids = [
-    azurerm_network_interface.nic.id
-  ]
-
-  admin_ssh_key {
-    username   = var.admin_username
-    public_key = var.ssh_public_key
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  source_image_reference {
+  source_image_reference = {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
     sku       = "22_04-lts-gen2"
     version   = "latest"
+  }
+
+  os_disk = {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  account_credentials = {
+    admin_credentials = {
+      username                           = var.admin_username
+      ssh_keys                           = [var.ssh_public_key]
+      generate_admin_password_or_ssh_key = false
+    }
+  }
+
+  network_interfaces = {
+    nic = {
+      name = "${var.name_prefix}-nic"
+      ip_configurations = {
+        ipconfig1 = {
+          name                          = "ipconfig1"
+          private_ip_subnet_resource_id = module.vnet.subnets["subnet"].resource_id
+          create_public_ip_address      = true
+          public_ip_address_name        = "${var.name_prefix}-pip"
+        }
+      }
+    }
   }
 }
