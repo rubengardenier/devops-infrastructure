@@ -66,3 +66,29 @@ variable "fabric_profile_images" {
 variable "tags" {
   type = map(string)
 }
+
+# --- Platform VNet peering (for private endpoint access) ---
+
+variable "platform_vnet_name" {
+  description = "Name of the platform VNet to peer with"
+  type        = string
+  default     = ""
+}
+
+variable "platform_vnet_resource_group" {
+  description = "Resource group of the platform VNet"
+  type        = string
+  default     = ""
+}
+
+variable "private_dns_zone_name" {
+  description = "Name of the private DNS zone for blob storage"
+  type        = string
+  default     = "privatelink.blob.core.windows.net"
+}
+
+variable "private_dns_zone_resource_group" {
+  description = "Resource group of the private DNS zone"
+  type        = string
+  default     = ""
+}
